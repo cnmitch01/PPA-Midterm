@@ -3,10 +3,31 @@ title: "Midterm Markdown"
 author: "Christina Mitchell"
 date: "2024-03-18"
 output: html_document
+html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(sf)
+library(spdep)
+library(caret)
+library(ckanr)
+library(FNN)
+library(grid)
+library(gridExtra)
+library(ggcorrplot) 
+library(corrr)      
+library(kableExtra)
+library(jtools)     
+library(ggstance) 
+library(ggpubr)    
+library(broom.mixed) 
+library(RColorBrewer)
 ```
 
 ## Property Value Prediction in King County, Washington 
@@ -15,6 +36,12 @@ This predictive model seeks to...
 
 Data for this project was gathered by... 
 
+# Loading in Data
 
+```{r load_variables, cache = TRUE}
 
+csv_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/kc_house_data.csv"
 
+kc_house_data <- read_csv(csv_url)
+
+```
