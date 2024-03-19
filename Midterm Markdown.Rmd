@@ -1,0 +1,20 @@
+---
+title: "Midterm Markdown"
+author: "Christina Mitchell"
+date: "2024-03-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Property Value Prediction in King County, Washington 
+
+This predictive model seeks to... 
+
+Data for this project was gathered by... 
+
+
+
+
