@@ -28,6 +28,12 @@ library(ggstance)
 library(ggpubr)    
 library(broom.mixed) 
 library(RColorBrewer)
+library(stargazer)
+library(geojsonsf)
+library(nngeo)
+library(FNN)
+
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
 ```
 
 ## Property Value Prediction in King County, Washington 
@@ -42,6 +48,51 @@ Data for this project was gathered by...
 
 csv_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/kc_house_data.csv"
 
-kc_house_data <- read_csv(csv_url)
+parks_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/park_facilities.csv"
+
+kc_house_data <- read_csv(csv_url) 
+
+kc_parks_data <- st_read(parks_url)
 
 ```
+## Gathering Outside Data - Data Wrangling 
+
+```{r data_wrangling, cache = TRUE}
+#Making the house data spatial 
+kc_house_sf <- st_as_sf(kc_house_data, coords = c("long", "lat"), crs = "EPSG:4326")
+
+kc_parks_sf <- st_as_sf(kc_parks_data, coords = c("X", "Y"), crs = "EPSG:4326")
+
+kc_parks_sf <- kc_parks_sf %>%
+            filter(SiteType == "Park Site")
+
+kc_variables_sf <-
+  kc_house_sf %>% 
+    mutate(
+      parks_nn1 = nn_function(st_coordinates(kc_house_sf), 
+                              st_coordinates(kc_parks_sf), k = 1))
+
+```
+
+
+## Summary Statistics - Understanding the Data 
+
+```{r summary_stats, cache = TRUE}
+
+lm.fit <- lm(price ~ bedrooms + sqft_living + floors + yr_built, data = kc_house_data) 
+summary(lm.fit)
+#seems like there is a negative relationship between housing age & price, but that could be because of certain ages
+
+kc_house_data$yr_built_category <- cut(kc_house_data$yr_built, 
+                                        breaks = c(1900, 1940, 1961, 1980, 2000, 2016),
+                                        labels = c(1, 2, 3, 4, 5),
+                                        include.lowest = TRUE)
+
+lm.fit1 <- lm(price ~ bedrooms + sqft_living + floors + yr_built + yr_built_category, data = kc_house_data)
+summary(lm.fit1)
+#hmmm lets try something else 
+
+lm.fit2 <- lm(price ~ sqft_living + waterfront + parks_nn1, data = kc_variables_sf)
+summary(lm.fit2)
+```
+
