@@ -50,19 +50,24 @@ csv_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/kc
 
 parks_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/park_facilities.csv"
 
+graduation_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/kc_graduation_rates_2014-2015.csv"
+
 kc_house_data <- read_csv(csv_url) 
 
 kc_parks_data <- st_read(parks_url)
+
+kc_graduation_data <- st_read(graduation_url)
 
 ```
 ## Gathering Outside Data - Data Wrangling 
 
 ```{r data_wrangling, cache = TRUE}
-#Making the house data spatial 
+#Making the data spatial 
 kc_house_sf <- st_as_sf(kc_house_data, coords = c("long", "lat"), crs = "EPSG:4326")
 
 kc_parks_sf <- st_as_sf(kc_parks_data, coords = c("X", "Y"), crs = "EPSG:4326")
 
+#Organizing parks data to incorporate as variable for model 
 kc_parks_sf <- kc_parks_sf %>%
             filter(SiteType == "Park Site")
 
@@ -71,6 +76,15 @@ kc_variables_sf <-
     mutate(
       parks_nn1 = nn_function(st_coordinates(kc_house_sf), 
                               st_coordinates(kc_parks_sf), k = 1))
+
+#Bringing in schools data 
+
+## First - graduation rates by district 
+kc_graduation_data <- kc_graduation_data %>%
+  filter(County == "King" & StudentGroupType == "All"& Cohort == "Four Year") %>% #four-year graduation rate for all students in KC
+  select(DistrictCode, DistrictName, SchoolCode, SchoolName, GraduationRate) %>%
+  mutate(GraduationRate = as.numeric(GraduationRate)) %>%
+  drop_na(GraduationRate)
 
 ```
 
