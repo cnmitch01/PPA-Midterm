@@ -102,7 +102,7 @@ kc_house_data$yr_built_category <- cut(kc_house_data$yr_built,
                                         labels = c(1, 2, 3, 4, 5),
                                         include.lowest = TRUE)
 
-lm.fit1 <- lm(price ~ bedrooms + sqft_living + floors + yr_built + yr_built_category, data = kc_house_data)
+lm.fit1 <- lm(price ~ bedrooms + sqft_living + floors + yr_built_category, data = kc_house_data)
 summary(lm.fit1)
 #hmmm lets try something else 
 
