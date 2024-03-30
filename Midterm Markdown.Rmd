@@ -1,13 +1,19 @@
 ---
 title: "Property Value Prediction Model for King County, Washington"
 author: "Christina Mitchell"
-date: "2024-03-18"
-output: html_document
-html_document:
+date: "2024-03-29"
+output:
+  html_document:
+    code_folding: hide
     toc: true
     toc_float: true
-    code_folding: hide
 ---
+
+```{css, class.source = 'foldable'}
+pre.foldable {
+  background-color: lightgreen;
+}
+```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -48,13 +54,13 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 # Property Value Prediction in King County, Washington
 
-This predictive model of implores structural and location characteristics to determine home prices in King County, Washington.
+This predictive model implores structural and location characteristics to determine home prices in King County, Washington. The results of this model highlight key indicators for home price such as bathrooms, square footage, and being in a good school district. The results are further supported by the statistical significance of the model and overall good fit.
 
 # 1) Data
 
 Data for this model includes King County House Data, provided by Marie-Antoinette Predictions (MAP) Inc., parks and school districts data from King County Open Data, and data for school graduation rates from the Washington State Report Card.
 
-```{r load_variables, cache = TRUE, }
+```{r load_variables, cache = TRUE, warning = FALSE, message = FALSE, results=FALSE}
 
 csv_url <- "https://raw.githubusercontent.com/cnmitch01/PPA-Midterm/main/data/kc_house_data.csv"
 
@@ -80,7 +86,7 @@ In addition to variables such as bedrooms and bathrooms, which were provided in 
 
 The suspected varied relationship between parks and home sale price partially influenced the inclusion of the graduation rates variable. To include this variable in the model in a way that made sense required filtering for districts with four-year high school graduation rates above 90%. Once these districts were determined, calculations were conducted to return "1" for homes which fell into these school districts and "0" for homes that did not.
 
-```{r data_wrangling, cache = TRUE, warning = FALSE}
+```{r data_wrangling, cache = TRUE, warning = FALSE, message = FALSE}
 #Making the data spatial 
 kc_house_sf <- st_as_sf(kc_house_data, coords = c("long", "lat"), crs = "EPSG:4326")
 
@@ -108,7 +114,7 @@ kc_variables_sf <-
 ## First - graduation rates by district 
 kc_graduation_data <- kc_graduation_data %>%
   filter(County == "King" & StudentGroupType == "All"& Cohort == "Four Year") %>% #four-year graduation rate for all students in KC
-  select(DistrictCode, DistrictName, SchoolCode, SchoolName, GraduationRate) %>%
+  dplyr::select(DistrictCode, DistrictName, SchoolCode, SchoolName, GraduationRate) %>%
   mutate(GraduationRate = as.numeric(GraduationRate)) %>%
   drop_na(GraduationRate) %>%
   filter(GraduationRate > .90) %>%  #filtering for districts with graduation rates greater than 90% 
@@ -152,10 +158,10 @@ The first attempts at this model (which can be found in the appendix) reflect an
 
 Instead of going off of assumptions, it was important to understand the variables. The density plot and summary statistics below provide a better understanding of the data and point to the fact that the home price variable is skewed to the left.
 
-```{r summary_stats, cache = TRUE}
+```{r summary_stats, cache = TRUE, results='asis'}
 
 #Density plot of price variable
-plot(density(kc_variables$price)) #it is skewed!!! knew it!!!
+plot(density(kc_variables$price)) 
 
 #Converting kc_variables tibble into proper data frame for summary statistics 
 kc_variables <- as.data.frame(kc_variables)
@@ -165,12 +171,19 @@ kc_variables <- as.data.frame(kc_variables)
 ##Internal and Physical Characteristics 
 physical <- kc_variables[, c("price", "bedrooms", "bathrooms", "sqft_living", "sqft_lot", "condition", "grade", "sqft_above", "sqft_basement", "yr_built", "yr_renovated", "Age")]
 
-stargazer(physical, type = "text", style = "default", title = "Physical Characteristics") #turn to html
+variable_labels <- c("Home Sale Price", "Number of Bedrooms", "Number of Bathrooms", "Square Footage of House", "Square Footage of Lot", "House Condition", "House Grade", "Square Footage Above House", "Square Footage of Basement", "Year House Built", "Year House Renovated", "Age of House")
+
+
+table_one <- stargazer(physical, type = "html", style = "default", title = "Physical Characteristics", 
+                             covariate.labels = variable_labels, column.sep.width = "200px")
+
 
 ##Amenities 
 amenities <- kc_variables[, c("parks_nn1", "parks_nn2", "parks_nn3", "parks_nn4", "in_district", "waterfront", "view")]
 
-stargazer(amenities, type = "text", style = "default", title = "Amenities") #turn to html
+variable_labels2 <- c("Home Distance to One Park", "Home Distance to Two Parks", "Home Distance to Three Parks", "Home Distance to Four Parks", "In Good School District", "Waterfront", "View")
+
+table_two <- stargazer(amenities, type = "html", style = "default", title = "Amenities", covariate.labels = variable_labels2, column.sep.width = "200px")
 
 ```
 
@@ -178,11 +191,11 @@ stargazer(amenities, type = "text", style = "default", title = "Amenities") #tur
 
 The maps included in this section are of the key variables in this predictive model. These include the dependent variable of home price, and the independent variables of parks, graduation rates, and home age.
 
-## Sale Price (Dependent Variable) - PROBLEM: ADJUST LEGEND FOR CLARITY
+## Sale Price (Dependent Variable)
 
 The sale price map below highlights the spatial distribution of home prices in King County. The northern part of the county appears to have higher home values than its southern counterpart.
 
-```{r dependent_map, cache = TRUE}
+```{r dependent_map, cache = TRUE, results = FALSE, message = FALSE}
 # base map 
 kingtracts <- 
   get_acs(geography = "tract", variables = c("B25026_001E","B25058_001E"), 
@@ -190,26 +203,39 @@ kingtracts <-
   st_transform('EPSG:4326') %>%
   rename(TotalPop = B25026_001E, 
          MedRent = B25058_001E) 
- 
-# mapping sale price
-colors <- brewer.pal(5, "YlGnBu")
-breaks <- quantile(kc_variables_sf$price, probs = seq(0, 1, 0.2))
+```
 
-# Create labels for legend with sale prices corresponding to each quintile
+```{r sale_price, cache = TRUE} 
+# mapping sale price
+colors <- brewer.pal(4, "PuBuGn")
+breaks <- c(75000, 200000, 400000, 600000, 800000)  # Example breaks
 labels <- c(paste0("$", formatC(breaks[1], format = "d", big.mark = ",")), 
             paste0("$", formatC(breaks[2], format = "d", big.mark = ",")), 
             paste0("$", formatC(breaks[3], format = "d", big.mark = ",")), 
             paste0("$", formatC(breaks[4], format = "d", big.mark = ",")), 
             paste0("$", formatC(breaks[5], format = "d", big.mark = ",")))
 
+# Create labels with explicit range in k format
+range_labels <- c(
+  paste0("$", formatC(breaks[1] / 1000, digits = 0, format = "d", big.mark = ","), "k - ",
+         "$", formatC(breaks[2] / 1000, digits = 0, format = "d", big.mark = ","), "k"),
+  paste0("$", formatC(breaks[2] / 1000, digits = 0, format = "d", big.mark = ","), "k - ",
+         "$", formatC(breaks[3] / 1000, digits = 0, format = "d", big.mark = ","), "k"),
+  paste0("$", formatC(breaks[3] / 1000, digits = 0, format = "d", big.mark = ","), "k - ",
+         "$", formatC(breaks[4] / 1000, digits = 0, format = "d", big.mark = ","), "k"),
+  paste0("$", formatC(breaks[4] / 1000, digits = 0, format = "d", big.mark = ","), "k - ",
+         "$", formatC(breaks[5] / 1000, digits = 0, format = "d", big.mark = ","), "k"),
+  paste0("$", formatC(breaks[5] / 1000, digits = 0, format = "d", big.mark = ","), "k and above")
+)
+
 # Plot the map with price quintiles differentiated by color and labeled legend
 ggplot() +
   geom_sf(data = kingtracts, color = NA) +
   geom_sf(data = kc_variables_sf, aes(colour = cut(price, breaks = breaks, include.lowest = TRUE)), 
           show.legend = "point", size = 0.75) +
-  scale_colour_manual(values = colors, labels = labels, name = "Sale Price Quintiles") +
+  scale_colour_manual(values = colors, labels = range_labels, name = "Sale Price Ranges") +
   labs(title = "Sale Price Distribution, King County") +
-   annotation_scale(location="bl", unit_category="imperial") +
+  annotation_scale(location="bl", unit_category="imperial") +
   annotation_north_arrow(location = "br", which_north = "true", 
                           height = unit(0.8, "cm"),
                           width = unit(0.8, "cm"),
@@ -220,7 +246,7 @@ ggplot() +
   guides(colour = guide_legend(override.aes = list(size = 3)))
 ```
 
-## Parks (Independent Variable #1) - FINISH UP HERE AND FIX
+## Parks (Independent Variable #1)
 
 The parks map below gives an indication of how parks are spatially distributed in King County. It is evident that the county has a great distribution of parks with some clustering in the central north and eastern part of the county.
 
@@ -246,7 +272,7 @@ ggplot() +
 
 The map below highlights the location of homes in and not within school districts with 90% or higher four-year high school graduation rates. Just from a spatial comparison, there appears to be some correlation between homes located in a district with a 90% or higher graduation rate and homes priced above \$519k.
 
-```{r grad_map, cache = TRUE}
+```{r grad_map, cache = TRUE, warning=FALSE}
 
 colors <- brewer.pal(2, "YlOrRd")
 labels <- c("Not In District w/90% or Higher Rate", "In District w/90% or Higher Rate")
@@ -275,7 +301,7 @@ This map highlights the spatial distribution of homes in King County based on th
 
 ```{r age_map, cache = TRUE}
 
-colors <- brewer.pal(9, "BuPu")  # You can adjust the number of colors as needed
+colors <- brewer.pal(9, "BuPu")  
 
 ggplot() +
   geom_sf(data = kingtracts, color = NA) +
@@ -298,7 +324,7 @@ ggplot() +
 
 ## Correlation Matrix
 
-The matrix below highlights the correlation between variables in the data set for the model and indicates which variables might cause multicollinearity.
+The matrix below highlights the correlation between variables in the data set for the model and indicates which variables might cause multicollinearity. Understanding which variables might cause an issue of collinearity (such as bedrooms and bathrooms) assisted in development of this model and choice in variables.
 
 ```{r correlation_matrix, cache = TRUE}
 
@@ -319,9 +345,9 @@ labs(title = "Correlation across numeric variables")
 
 The scatter plots below highlight the relationship between price and the variables of bathrooms, in_district, parks_nn4, and sqft_living. Only the relationship between price and sqft_living appears to be linear.
 
-```{r correlation_plots, cache = TRUE}
+```{r correlation_plots, cache = TRUE, message = FALSE}
 kc_selection <- kc_variables %>%
-  select(price, bathrooms, sqft_living, in_district, parks_nn4)
+  dplyr::select(price, bathrooms, sqft_living, in_district, parks_nn4)
 
 kc_long <- gather(kc_selection, Variable, Value, -price)
 
@@ -340,7 +366,7 @@ ggplot(kc_long, aes(Value, price)) +   # Set up the plot
 
 To build out the model, the data set is split into testing and training.
 
-```{r test_train, cache = TRUE}
+```{r test_train, cache = TRUE, results = FALSE}
 #80/20 split for testing and training 
 set.seed(1)
 row.number <- sample(1:nrow(kc_variables), 0.8*nrow(kc_variables))
@@ -358,7 +384,7 @@ The residuals plots of model 2 indicate room for improvement as the scatter of r
 
 ```{r practice_model, cache = TRUE}
 #just doing some practice models 
-model1 = lm(log(price)~., data=train)   #omg these are so much better!!! 
+model1 = lm(log(price)~., data=train)   
 summary(model1)
 
 model2 = update(model1, ~.-bedrooms-sft_basement-parks_nn1-parks_nn2) 
@@ -386,14 +412,36 @@ summary(model3)
 
 This final model removes uninteresting and statistically insignificant variables from the previous model. Compared to the first practice models, the residuals in the Residuals vs. Fitted plot appear more randomly scattered and the Q-Q residuals plot highlights a slightly more perfect line. The observations which deviate from the norm also appear fairly consistent. Observations 1470, 16026, and 6684 appear in several of the residuals plots.
 
-The adjusted R-square for this model sits at .7452, meaning 75% of the variance in the logarithm of prices is explained by the model. All of the variables included in the model are extremely statistically significant with p-values less than .001. These indicators point to this model being a good fit for the data.
+The adjusted R-square for this model sits at .7452, meaning 75% of the variance in the logarithm of prices is explained by the model. All of the variables included in the model are extremely statistically significant with p-values less than .001. These indicators point to this model being a good fit for the data. To further support this claim, a k-fold cross-validation test was run on the training dataset and the outputs of a low RMSE and an R-squared of approximately .74, also point to the good fit of the model.
 
-```{r final_model, cache = TRUE}
+```{r final_model, cache = TRUE, message = FALSE}
 #remove insignificant variables & variables I don't find interesting
 kc_model = update(model3, ~.-sqft_above-sqft_basement-zipcode-Age-I(bathrooms^2)-I(sqft_living^2)-I(sqft_lot^2)-I(waterfront^2)-I(view^2)-I(condition^2)-I(zipcode^2)-I(in_district^2)-I(Age^2)-I(sqft_lot15^2)-sqft_lot15-sqft_living15-sqft_lot)
 
 summary(kc_model)
 plot(kc_model)
+
+#cross-validation 
+control <- trainControl(method = "cv",   
+                        number = 10,     
+                        verboseIter = TRUE,  
+                        returnData = FALSE,  
+                        savePredictions = TRUE,  
+                        classProbs = FALSE,  
+                        summaryFunction = defaultSummary)  
+
+# Train the linear regression model using k-fold cross-validation
+kc_cv <- train(log(price) ~ bathrooms + sqft_living + sqft_lot + 
+      floors + waterfront + view + condition + grade + yr_built + yr_renovated + 
+      parks_nn3 + parks_nn4 + in_district + I(floors^2) + I(grade^2) + 
+      I(sqft_above^2) + I(sqft_basement^2) + I(yr_built^2) + I(yr_renovated^2) + 
+      I(sqft_living15^2)  + I(parks_nn3^2) + I(parks_nn4^2), 
+      data = train,  
+      method = "lm",           
+      trControl = control)     
+
+# View the cross-validation results
+print(kc_cv)
 ```
 
 ## Evaluating the Final Model with the Test Data Set
@@ -418,16 +466,15 @@ abline(0, 1, col = "red")
 
 ## Key Findings
 
--   Overall model fit good
--   Log transformation was key for the price variable
+Overall, the model fit appears to be positive. The high R-squared of 0.7455 indicates that approximately 75% of the variance in the log transformation of the home price variable is explained by the predictor variables. In addition, the coefficients in the model have extremely low p-values, indicating that they are statistically significant predictors of price. The log transformation done on the home price variable was key to accounting for the skewed distribution of the data.
 
 ## Areas for Improvement
 
--   Consider cutting out home prices over one million or splitting them up (predicted v. observed plot indicates the range got larger with more expensive homes)
+Though the log transformation done on the home price variable was key to accounting for the skewed distribution of data, this made interpreting the coefficients in the model difficult. Perhaps a future iteration of this project would involve cutting out home prices over one million or placing them in a separate data set to have more evenly distributed home prices. The predicted vs. observed plot further highlights this issue, as the home price became higher, the distance between the predicted value and the observed value grew larger.
 
 # Appendix
 
-Put this shitty model in the appendix -
+The code chunks below were initial attempts at building out a home sale prediction model. The models were based on assumptions about which variables would affect sale price.
 
 ```{r lm_model, cache = TRUE}
 
@@ -477,4 +524,4 @@ kc_model_cv <- train(price ~ bathrooms + Age^2 + in_district*parks_nn4 + view + 
 print(kc_model_cv)
 ```
 
-These results highlight a high RMSE (230,053) and MAE (146,935.6) which might mean I should consider cutting off homes about one million...
+These results highlight a high RMSE (230,053) and MAE (146,935.6).
